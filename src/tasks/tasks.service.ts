@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { RedisService } from '../redis/redis.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskStatus } from './task-status.enum';
@@ -9,9 +11,13 @@ import { Task } from './task.entity';
 
 @Injectable()
 export class TasksService {
+  private readonly tasksCacheKey = 'tasks:list';
+
   constructor(
     @InjectRepository(Task)
     private readonly tasksRepository: Repository<Task>,
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
@@ -21,15 +27,31 @@ export class TasksService {
       status: TaskStatus.Pending,
     });
 
-    return this.tasksRepository.save(task);
+    const createdTask = await this.tasksRepository.save(task);
+
+    await this.invalidateTasksCache();
+
+    return createdTask;
   }
 
-  findAll(): Promise<Task[]> {
-    return this.tasksRepository.find({
+  async findAll(): Promise<Task[]> {
+    const cachedTasks = await this.redisService.get<Task[]>(this.tasksCacheKey);
+
+    if (cachedTasks) {
+      return cachedTasks;
+    }
+
+    const tasks = await this.tasksRepository.find({
       order: {
         createdAt: 'DESC',
       },
     });
+
+    const ttl = Number(this.configService.get<string>('REDIS_TTL', '30'));
+
+    await this.redisService.set(this.tasksCacheKey, tasks, ttl);
+
+    return tasks;
   }
 
   async findOne(id: string): Promise<Task> {
@@ -55,18 +77,33 @@ export class TasksService {
       task.description = updateTaskDto.description;
     }
 
-    return this.tasksRepository.save(task);
+    const updatedTask = await this.tasksRepository.save(task);
+
+    await this.invalidateTasksCache();
+
+    return updatedTask;
   }
 
   async markAsDone(id: string): Promise<Task> {
     const task = await this.findOne(id);
     task.status = TaskStatus.Done;
 
-    return this.tasksRepository.save(task);
+    const updatedTask = await this.tasksRepository.save(task);
+
+    await this.invalidateTasksCache();
+
+    return updatedTask;
   }
 
   async remove(id: string): Promise<void> {
     const task = await this.findOne(id);
+
     await this.tasksRepository.remove(task);
+
+    await this.invalidateTasksCache();
+  }
+
+  private async invalidateTasksCache(): Promise<void> {
+    await this.redisService.del(this.tasksCacheKey);
   }
 }
