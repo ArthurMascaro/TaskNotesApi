@@ -284,14 +284,6 @@ O workflow realiza:
 
 Após o workflow executar com sucesso, a imagem da API será publicada no GitHub Container Registry.
 
-Formato da imagem:
-
-```txt
-ghcr.io/SEU_USUARIO/task-notes-api:latest
-```
-
-Substitua `SEU_USUARIO` pelo usuário ou organização do GitHub responsável pelo repositório.
-
 ---
 
 ## Exemplo de uso externo da imagem
@@ -372,27 +364,6 @@ docker-compose.yml
 .env.example
 README.md
 ```
-
----
-
-## Critérios atendidos
-
-O projeto atende aos seguintes critérios:
-
-* Software próprio hospedado no GitHub;
-* Uso de Docker;
-* Uso de Docker Compose;
-* Pelo menos três serviços diferentes;
-* API com NestJS;
-* PostgreSQL como banco de dados;
-* Redis como cache;
-* Uso de variáveis de ambiente;
-* Uso de volumes Docker;
-* Persistência de dados no PostgreSQL;
-* Cache da listagem de tarefas com Redis;
-* Invalidação de cache em operações de escrita;
-* Workflow do GitHub Actions;
-* Publicação de imagem Docker no GitHub Container Registry.
 
 ---
 
