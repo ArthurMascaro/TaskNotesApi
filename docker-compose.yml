@@ -1,9 +1,7 @@
 services:
   api:
-    image: node:20-alpine
+    build: .
     container_name: task-notes-api
-    working_dir: /app
-    command: sh -c "npm install && npm run start:dev"
     ports:
       - "${API_PORT:-3000}:3000"
     environment:
@@ -13,12 +11,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
       POSTGRES_DB: ${POSTGRES_DB:-task_notes}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_TTL: ${REDIS_TTL:-30}
       TYPEORM_SYNCHRONIZE: ${TYPEORM_SYNCHRONIZE:-true}
-    volumes:
-      - .:/app
-      - api_node_modules:/app/node_modules
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   postgres:
@@ -38,7 +38,20 @@ services:
       timeout: 5s
       retries: 5
 
-volumes:
-  api_node_modules:
-  postgres_data:
+  redis:
+    image: redis:7
+    container_name: task-notes-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+volumes:
+  postgres_data:
+  redis_data:
